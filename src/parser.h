@@ -170,7 +170,7 @@ class decoder {
 public:
     unique_ptr<instruction> get_instruction(unsigned int ins) {
         unique_ptr<instruction> o;
-        cout << std::hex << ins <<'\n';
+        //cout << std::hex << ins <<'\n';
         uint8_t opcode = ins & 0x7f;
         if (opcode == 0x37 ||opcode == 0x17) {
             o = make_unique<U_type>(ins);
