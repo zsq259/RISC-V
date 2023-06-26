@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <bitset>
 using std::cout;
 using std::cin;
 using std::unique_ptr;
@@ -25,7 +26,7 @@ struct instruction {
     virtual unsigned int get_rs1() = 0;
     virtual unsigned int get_rs2() = 0;
     virtual unsigned int get_imm() = 0;
-    void print() { std::cout << std::dec << funcs[op] << ' ' <<get_rd() << ' ' << get_rs1() << ' ' << get_rs2() << ' ' << get_imm() <<'\n'; }
+    void print() { std::cout << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
 };
 struct R_type: public instruction {
     unsigned int rs2 : 5;
@@ -170,7 +171,9 @@ class decoder {
 public:
     unique_ptr<instruction> get_instruction(unsigned int ins) {
         unique_ptr<instruction> o;
-        //cout << std::hex << ins <<'\n';
+        // cout << std::hex << ins <<'\n';
+        // std::bitset<32> mm(ins);
+        // cout << mm << '\n';
         uint8_t opcode = ins & 0x7f;
         if (opcode == 0x37 ||opcode == 0x17) {
             o = make_unique<U_type>(ins);

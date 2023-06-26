@@ -24,11 +24,15 @@ private:
     Memory m;
 public:
     int work(std::unique_ptr<instruction> o) {
-        // o->print();
-        // unsigned bb = sext(o->get_imm(), 21);
-        // std::bitset<32> mm(bb);
-        // cout << mm << '\n';
-        // cout << signed(bb) << '\n';
+        //o->print();
+        // if (1) {
+        //     puts("begin");
+        //     printf("rs1=%d rs2=%d rd=%d\n",reg.x[o->get_rs1()], reg.x[o->get_rs2()], reg.x[o->get_rd()]);
+            
+        //     unsigned bb = sext(o->get_imm(), 12);
+        //     std::bitset<32>mm(bb);
+        //     std::cout <<"mm=" <<mm << " bb=" << bb <<'\n';
+        // }
         int flag =  1;
         switch (o->op) {
             case 0: { reg.x[o->get_rd()] = (signed int)(o->get_imm() << 12); } break;
@@ -43,7 +47,7 @@ public:
             case 9: { if(reg.x[o->get_rs1()] >= reg.x[o->get_rs2()]) flag = 0, reg.pc += sext(o->get_imm(), 13); } break;
             case 10: { reg.x[o->get_rd()] = sext(m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 1), 8); } break;
             case 11: { reg.x[o->get_rd()] = sext(m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 2), 16); } break;
-            case 12: { reg.x[o->get_rd()] = sext(m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 4), 32); } break;
+            case 12: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 4); } break;
             case 13: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 1); } break;
             case 14: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 2); } break;
             case 15: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 1); } break;
@@ -69,6 +73,11 @@ public:
             case 35: { reg.x[o->get_rd()] = reg.x[o->get_rs1()] | reg.x[o->get_rs2()]; } break;
             case 36: { reg.x[o->get_rd()] = reg.x[o->get_rs1()] & reg.x[o->get_rs2()]; } break;
         }
+        if(reg.x[0]) reg.x[0] = 0;
+        // if (1) {
+        //     puts("end");
+        //     printf("rs1=%d rs2=%d rd=%d\n",reg.x[o->get_rs1()], reg.x[o->get_rs2()], reg.x[o->get_rd()]);
+        // }
         return flag;
     }
 };
@@ -86,6 +95,7 @@ public:
             unsigned ins = m.get(Register::pc); 
             if (ins == 0x0ff00513) break;
             if (a.work(p.get_instruction(ins))) Register::pc += 4;;
+            if (reg.x[0]) break;
         }
         cout << std::dec << (((unsigned int)reg.x[10]) & 255u) <<'\n';
     }
