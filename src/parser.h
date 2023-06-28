@@ -26,7 +26,7 @@ struct instruction {
     virtual unsigned int get_rs1() = 0;
     virtual unsigned int get_rs2() = 0;
     virtual unsigned int get_imm() = 0;
-    void print() { std::cout << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
+    void print() { std::cerr << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
     bool is_R() { return op >= 27 && op <= 36; }
     bool is_I() { return op == 3 || (op >= 10 && op <= 14) || (op >= 18 && op <= 26); }
     bool is_S() { return op >= 15 && op <= 17; }

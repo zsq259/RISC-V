@@ -27,10 +27,18 @@ class Register {
 public:
     unsigned int x[2][32];
     unsigned int pc[2];
-    unsigned int q[2][32];
+    int q[2][32];
     void update(int clk) {
         pc[clk ^1] = pc[clk];
-        for (int i = 0; i < 32; ++i) x[clk ^ 1][i] = x[clk][i], q[clk ^ 1][i] = q[clk][i];
+        for (int i = 1; i < 32; ++i) x[!clk][i] = x[clk][i], q[!clk][i] = q[clk][i];
+        x[!clk][0] = 0;
+    }
+    void clear(int clk) {
+        for (int i = 0; i < 32; ++i) q[clk][i] = -1;
+    }
+    void print(int clk) {
+        for (int i = 0; i < 32; ++i) std::cerr << x[clk][i] << ' ';
+        std::cerr << pc[clk] << '\n';
     }
 };
 
@@ -68,6 +76,7 @@ public:
         throw;
     }
     int run_B(int op, unsigned rs1, unsigned rs2) {
+        // std::cerr << "rs1====== " << rs1 << ' ' << rs2 << '\n';
         switch (op) {
             case 4: return rs1 == rs2;
             case 5: return rs1 != rs2;
@@ -148,8 +157,9 @@ public:
     void bus(int id, int value, int clk) {
         for (int i = 0; i < maxSize; ++i) {
             if (!c[i]) continue;
-            if (v[clk][i].qj == id) v[clk][i].vj = value, v[clk][i].qj = 0;
-            if (v[clk][i].qk == id) v[clk][i].vk = value, v[clk][i].qk = 0;            
+            if (v[!clk][i].qj == id) v[clk][i].vj = value, v[clk][i].qj = -1;
+            if (v[!clk][i].qk == id) v[clk][i].vk = value, v[clk][i].qk = -1;
+            // if (v[!clk][i].qk == id && v[clk][i].op == 5) cout << "vvvvv= " << v[clk][i].vk << '\n';
         }
     }
 };
@@ -169,8 +179,8 @@ public:
     void bus(int id, int value, int clk) {
         for (int i = 0; i < maxSize; ++i) {
             if (!c[i]) continue;
-            if (v[clk][i].qj == id) v[clk][i].vj = value, v[clk][i].qj = 0;
-            if (v[clk][i].qk == id) v[clk][i].vk = value, v[clk][i].qk = 0;
+            if (v[!clk][i].qj == id) v[clk][i].vj = value, v[clk][i].qj = -1;
+            if (v[!clk][i].qk == id) v[clk][i].vk = value, v[clk][i].qk = -1;
         }
     }
 };
@@ -179,8 +189,8 @@ extern ReservationStation RS_;
 extern LoadStoreBuffer LSB_;
 
 struct RoBdata {
-    int id, busy, status, dest, value, op;
-    RoBdata(int id_, int b_, int s_, int v_, int o_): id(id_), busy(b_), status(s_), value(v_), op(o_), dest(0) {}
+    int id, busy,  dest, value, op;
+    RoBdata(int id_, int b_, int v_, int o_): id(id_), busy(b_), value(v_), op(o_), dest(0) {}
 };    
 
 class ReorderBuffer {
@@ -206,13 +216,13 @@ public:
     }
     void clear(int clk) {
         while (!que[clk].empty()) que[clk].pop_back();
-        size[clk] = 0;
+        cnt[clk] = size[clk] = block[clk] = head[clk] = 0;
     }
     void LSB_excute(int clk) {
         RSdata *a = nullptr;
         RoBdata *b = nullptr;
         for (int i = 0; i < maxSize; ++i) {
-            if (!LSB->c[!clk][i] || LSB->v[!clk][i].qj || LSB->v[!clk][i].qk) continue;
+            if (!LSB->c[!clk][i] || LSB->v[!clk][i].qj != -1 || LSB->v[!clk][i].qk != -1) continue;
             
             a = &LSB->v[clk][i];
             int flag = 0, h = a->dest;
@@ -228,7 +238,7 @@ public:
             if (LSB->c[clk][i] < 3) { ++LSB->c[clk][i]; continue; }
 
             b->busy = 0;
-            b->status = kexcute;
+            //b->status = kexcute;
             if (is_S(b->op)) {
                 b->dest = a->vj + sext(a->A, 12);
                 b->value = a->vk;
@@ -245,20 +255,25 @@ public:
         RSdata *a = nullptr;
         RoBdata *b = nullptr;
         for (int i = 0; i < maxSize; ++i) {
-            if (!RS->c[!clk][i] || RS->v[!clk][i].qj || RS->v[!clk][i].qk) continue;
+            //printf("i=%d %d %d\n", i, RS->v[!clk][i].qj, RS->v[!clk][i].qk);
+            if (!RS->c[!clk][i] || RS->v[!clk][i].qj != -1 || RS->v[!clk][i].qk != -1) continue;
             a = &RS->v[clk][i];
             b = &que[clk][a->dest];
             b->busy = 0;
-            b->status = kexcute;
+            //b->status = kexcute;
+            // if (b->id == 9) std::cerr << "vj================== " << RS->v[!clk][i].vj << '\n';
             if (is_R(a->op)) {
-                b->value = A.run_R(a->op, a->vj, a->vk);    
+                if (b->dest) b->value = A.run_R(a->op, a->vj, a->vk);    
             }
             else if (is_U(a->op)) {
-                b->value = A.run_U(a->op, a->A);
+                if (b->dest) b->value = A.run_U(a->op, a->A);
             }
             else if (is_I(a->op)) {
                 if (a->op == 3) { reg->pc[clk] = (a->vj + sext(a->A, 12)) & ~1; }
-                else { b->value = A.run_I(a->op, a->vj, a->A); }
+                else { if (b->dest) b->value = A.run_I(a->op, a->vj, a->A); }
+            }
+            else if (is_B(a->op)) {
+                b->value ^= A.run_B(a->op, a->vj, a->vk);
             }
             RS->c[clk][i] = 0; --RS->size[clk];
             LSB->bus(a->dest, b->value, clk);
@@ -268,19 +283,20 @@ public:
     void commit(int clk) { //clk: next time;
         //cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
         if (!size[!clk] || que[!clk][head[!clk]].busy) return ;
-        
+        // cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
         RoBdata *v = &que[clk][head[clk]]; ++head[clk];
         //que[clk].pop_front(); 
         --size[clk];
         v->busy = 0;
-        v->status = kcommit;
         if (v->op == 3) block[clk] = 0;
         if (is_B(v->op)) {
             if (v->value) {
+                // std::cerr << "wrong!!!!!!!!!!!! " << v->op << ' ' << v->id << '\n';
                 reg->pc[clk] = v->dest;
                 clear(clk);
                 RS->clear(clk);
                 LSB->clear(clk);
+                reg->clear(clk);
                 Bus *b = &Bus_; b->set(clk);
             }
         }
@@ -291,7 +307,7 @@ public:
         }
         else { 
             if (v->dest) reg->x[clk][v->dest] = v->value; 
-            if (reg->q[clk][v->dest] == v->id) reg->q[clk][v->dest] = 0;
+            if (reg->q[!clk][v->dest] == v->id) reg->q[clk][v->dest] = -1;
             RS->bus(v->id, v->value, clk);
             LSB->bus(v->id, v->value, clk);
         }
@@ -324,7 +340,7 @@ public:
         if (op && LSB->full(!clk)) return false;
         if (!op && RS->full(!clk)) return false;
         ++RoB->size[clk];
-        RoB->que[clk].push_back(RoBdata(RoB->cnt[clk], 1, kissue, 0, o->op));
+        RoB->que[clk].push_back(RoBdata(RoB->cnt[clk], 1, 0, o->op));
         RSdata *v = nullptr;
         if (op) { for (int i = 0; i < LSB->maxSize; ++i) if (!LSB->c[!clk][i]) { v = &LSB->v[clk][i]; LSB->c[clk][i] = 1; LSB->add(clk); break; } }
         else { for (int i = 0; i < RS->maxSize; ++i) if (!RS->c[!clk][i]) { v = &RS->v[clk][i]; RS->c[clk][i] = 1; RS->add(clk); break; } }
@@ -334,28 +350,34 @@ public:
         if (o->is_J()) { RoB->que[clk][RoB->cnt[clk]].value = pc + 4; }
         else if (o->op == 3) { RoB->que[clk][RoB->cnt[clk]].value = pc + 4; RoB->block[clk] = 1; }
         else if (o->op == 1) { v->A += pc; }
-
+        v->qj = v->qk = -1;
         if (!(o->is_U() || o->is_J())) {
-            if (reg->q[!clk][rs1]) {
+            // if (RoB->cnt[clk] == 9) std::cerr << "reg================= " << reg->q[!clk][rs1] << '\n';
+            if (reg->q[!clk][rs1] != -1) {
                 int h = reg->q[!clk][rs1];
-                if (!RoB->que[!clk][h].busy) { v->vj = RoB->que[!clk][h].value; v->qj = 0; }
+                if (!RoB->que[!clk][h].busy) { v->vj = RoB->que[!clk][h].value; v->qj = -1; }
                 else v->qj = h;
             }
-            else { v->vj = reg->x[!clk][rs1]; v->qj = 0; }
+            else { v->vj = reg->x[!clk][rs1]; v->qj = -1; }
+            if (!rs1) { v->vj = 0; v->qj = -1; }
         }
+        // if (RoB->cnt[clk] == 9) std::cerr << "reg================= " << v->qj << '\n';
         if (o->is_B() || o->is_S() || o->is_R()) {
-            if (reg->q[!clk][rs2]) {
+            if (reg->q[!clk][rs2] != -1) {
                 int h = reg->q[!clk][rs2];
-                if (!RoB->que[!clk][h].busy) { v->vk = RoB->que[!clk][h].value; v->qk = 0; }
-                else v->qk= h;
+                if (!RoB->que[!clk][h].busy) { v->vk = RoB->que[!clk][h].value; v->qk = -1; }
+                else v->qk = h;
             }
-            else { v->vk = reg->x[!clk][rs2]; v->qk = 0; }
+            else { v->vk = reg->x[!clk][rs2]; v->qk = -1; }
+            if (!rs2) { v->vk = 0; v->qk = -1; }
         }
-
+        
         if (o->is_B()) { RoB->que[clk][RoB->cnt[clk]].value = pc & 1; RoB->que[clk][RoB->cnt[clk]].dest = pc & ~1; }
         
         if (!(o->is_B() || o->is_S())) { reg->q[clk][rd] = RoB->cnt[clk]; RoB->que[clk][RoB->cnt[clk]].dest = rd; }
+        // if (RoB->cnt[clk] == 9) std::cerr << "vk================== " << v->qj << ' ' << v->qk << '\n';
         ++RoB->cnt[clk];
+        
         return true;
     }
 };
@@ -381,7 +403,7 @@ public:
     void fetch(int clk) { ins[clk] = m->fetch(reg->pc[!clk]); reg->pc[clk] = reg->pc[!clk] + 4; }
     bool issue(shared_ptr<instruction> o, int clk, bool res) {
         if (!o->is_B()) return d.issue(o, reg->pc[!clk] - 4, clk);
-        else return d.issue(o, (reg->pc[!clk] + (res? 4 : sext(o->get_imm(), 13))) | res, clk);
+        else return d.issue(o, (reg->pc[!clk] - 4 + (res? 4 : sext(o->get_imm(), 13))) | res, clk);
     }
     bool decode(int clk) {
         if (changeFlag[!clk]) ins[!clk] = change[!clk];
@@ -391,12 +413,13 @@ public:
         
         shared_ptr<instruction> o = d.decode(ins[!clk]);
         //std::cout << "ins=  " << std::hex << ins[!clk] << '\n';
-        //o->print();
 
         bool res = false;
         if (o->is_B()) res = p.result();
 
         if(!issue(o, clk, res)) { changeFlag[clk] = true; change[clk] = ins[!clk]; return false; }
+
+        // o->print();
 
         if (o->is_J()) { reg->pc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; changeFlag[clk] = 1; }
         else if (o->is_B()) { reg->pc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; changeFlag[clk] = 1; }
@@ -409,9 +432,11 @@ public:
     }
     void work() {
         m->init();
+        reg->clear(0); reg->clear(1);
         int clk = clock & 1;
         while (true) {
-            //cout << "clock= " << clock << ' ' << clk << '\n';
+            //cout << "-----------------------clock= " << clock << ' ' << clk << '\n';
+            //if (clock > 50) break;
             if (!RoB->block[!clk]) {
                 if (!changeFlag[!clk]) fetch(clk);
                 else ins[clk] = 0;
@@ -422,6 +447,9 @@ public:
             RoB->LSB_excute(clk);
             RoB->commit(clk);
             if (b->get_flag(clk)) clear(clk), b->clear(clk);
+
+            // reg->print(clk);
+
             update(clk);
             reg->update(clk);
             RoB->update(clk);
@@ -429,6 +457,7 @@ public:
             LSB->update(clk);
             b->update(clk);
             ++clock; clk ^= 1;
+            
         }
         cout << std::dec << (((unsigned int)reg->x[clock & 1][10]) & 255u) << '\n';
     }

@@ -26,7 +26,7 @@ struct instruction {
     virtual unsigned int get_rs1() = 0;
     virtual unsigned int get_rs2() = 0;
     virtual unsigned int get_imm() = 0;
-    void print() { std::cout << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
+    void print() { std::cerr << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
 };
 struct R_type: public instruction {
     unsigned int rs2 : 5;
