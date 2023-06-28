@@ -29,7 +29,7 @@ public:
     unsigned int pc[2];
     int q[2][32];
     void update(int clk) {
-        pc[clk ^1] = pc[clk];
+        pc[!clk] = pc[clk];
         for (int i = 1; i < 32; ++i) x[!clk][i] = x[clk][i], q[!clk][i] = q[clk][i];
         x[!clk][0] = 0;
     }
@@ -76,7 +76,6 @@ public:
         throw;
     }
     int run_B(int op, unsigned rs1, unsigned rs2) {
-        // std::cerr << "rs1====== " << rs1 << ' ' << rs2 << '\n';
         switch (op) {
             case 4: return rs1 == rs2;
             case 5: return rs1 != rs2;
@@ -228,10 +227,10 @@ public:
             int flag = 0, h = a->dest;
             b = &que[clk][h];
             if (is_I(b->op)) {
-                for (int i = head[!clk]; i < h; ++i) if (is_S(que[clk][i].op)) { flag = 1; break; }
+                for (int i = head[!clk]; i < h; ++i) if (is_S(que[!clk][i].op)) { flag = 1; break; }
             }
             else {
-                for (int i = head[!clk]; i < h; ++i) if (is_S(que[clk][i].op) || (que[clk][i].op >= 10 && que[clk][i].op <= 14)) { flag = 1; break; }
+                for (int i = head[!clk]; i < h; ++i) if (is_S(que[!clk][i].op) || (que[!clk][i].op >= 10 && que[!clk][i].op <= 14)) { flag = 1; break; }
             }
             if (flag) continue;
 
@@ -242,6 +241,7 @@ public:
             if (is_S(b->op)) {
                 b->dest = a->vj + sext(a->A, 12);
                 b->value = a->vk;
+                // cout << "op= " << b->id << ' ' << a->vk << '\n';
             }
             else {
                 b->value = A.run_I(a->op, a->vj, a->A);
@@ -307,7 +307,8 @@ public:
         }
         else { 
             if (v->dest) reg->x[clk][v->dest] = v->value; 
-            if (reg->q[!clk][v->dest] == v->id) reg->q[clk][v->dest] = -1;
+            // if (reg->q[!clk][v->dest] != reg->q[clk][v->dest]) std::cerr << "q=== " <<  reg->q[!clk][v->dest] << ' ' <<  reg->q[clk][v->dest] << '\n';
+            if (reg->q[clk][v->dest] == v->id) reg->q[clk][v->dest] = -1;
             RS->bus(v->id, v->value, clk);
             LSB->bus(v->id, v->value, clk);
         }
@@ -375,7 +376,7 @@ public:
         if (o->is_B()) { RoB->que[clk][RoB->cnt[clk]].value = pc & 1; RoB->que[clk][RoB->cnt[clk]].dest = pc & ~1; }
         
         if (!(o->is_B() || o->is_S())) { reg->q[clk][rd] = RoB->cnt[clk]; RoB->que[clk][RoB->cnt[clk]].dest = rd; }
-        // if (RoB->cnt[clk] == 9) std::cerr << "vk================== " << v->qj << ' ' << v->qk << '\n';
+        // if (RoB->cnt[clk] == 21) std::cerr << "vk================== " << v->vk << ' ' << v->qk << '\n';
         ++RoB->cnt[clk];
         
         return true;
@@ -419,7 +420,7 @@ public:
 
         if(!issue(o, clk, res)) { changeFlag[clk] = true; change[clk] = ins[!clk]; return false; }
 
-        // o->print();
+        //o->print();
 
         if (o->is_J()) { reg->pc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; changeFlag[clk] = 1; }
         else if (o->is_B()) { reg->pc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; changeFlag[clk] = 1; }
@@ -435,7 +436,7 @@ public:
         reg->clear(0); reg->clear(1);
         int clk = clock & 1;
         while (true) {
-            //cout << "-----------------------clock= " << clock << ' ' << clk << '\n';
+            // std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
             //if (clock > 50) break;
             if (!RoB->block[!clk]) {
                 if (!changeFlag[!clk]) fetch(clk);

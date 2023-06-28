@@ -34,10 +34,12 @@ public:
     }
     unsigned int load(int place, int n) {
         unsigned int x = 0;
+        std::cout << std::dec << "place= " << place << ' ' << n << '\n';
         for (int i = 0; i < n; ++i) x |= mem[i + place] << (i * 8);
         return x;
     }
     void store(int place, unsigned int x, int n) {
+        std::cout << "store= " << place << ' ' << x << ' ' << n << '\n';
         for (int i = 0; i < n; ++i) mem[i + place] = x & 0xff, x >>= 8;
     }
 };
