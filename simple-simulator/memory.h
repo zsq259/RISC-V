@@ -6,7 +6,7 @@
 namespace hst{
 class Memory{
 private:
-    unsigned char mem[20000005];
+    static unsigned char mem[20000005];
 public:
     void init() {
         bool count = false;
@@ -27,7 +27,7 @@ public:
             }
         }
     }
-    unsigned int fetch(int place) {
+    unsigned int get(int place) {
         unsigned int ins = 0;
         for (int i = 0; i < 4; ++i) ins |= (Memory::mem[i + place] << (i * 8));
         return ins;

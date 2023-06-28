@@ -8,9 +8,9 @@
 #include <bitset>
 using std::cout;
 using std::cin;
-using std::shared_ptr;
+using std::unique_ptr;
 using std::string;
-using std::make_shared;
+using std::make_unique;
 
 namespace hst{
 static string funcs[38] = {"lui", "auipc", "jal", "jalr", "beq", "bne", "blt", "bge", "bltu", "bgeu", "lb", "lh", "lw", "lbu", "lhu", "sb", "sh", "sw", "addi", "slti", "sltiu", "xori", "ori", "andi", "slli", "srli", "srai", "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and" };
@@ -27,12 +27,6 @@ struct instruction {
     virtual unsigned int get_rs2() = 0;
     virtual unsigned int get_imm() = 0;
     void print() { std::cout << std::dec << funcs[op] << ' ' <<get_rs1() << ' ' << get_rs2() << ' ' << get_rd() << ' ' << get_imm() <<'\n'; }
-    bool is_R() { return op >= 27 && op <= 36; }
-    bool is_I() { return op == 3 || (op >= 10 && op <= 14) || (op >= 18 && op <= 26); }
-    bool is_S() { return op >= 15 && op <= 17; }
-    bool is_B() { return op >= 4 && op <= 9; }
-    bool is_U() { return op == 0 || op == 1; }
-    bool is_J() { return op == 2; }
 };
 struct R_type: public instruction {
     unsigned int rs2 : 5;
@@ -137,7 +131,6 @@ struct B_type: public instruction {
         else if (funct3 == 7) { op = 9; }
         rs1 = (ins >> 15) & 0x1f;
         rs2 = (ins >> 20) & 0x1f;
-        imm = 0;
         imm |= ((ins >> 8) & 0xf) << 1;
         imm |= get_num(ins, 25, 30) << 5;
         imm |= ((ins >> 7) & 1) << 11;
@@ -173,6 +166,35 @@ struct J_type: public instruction {
         imm |= ((ins >> 20) & 1) << 11;
         imm |= ((ins >> 12) & 0xff) << 12;
         imm |= ((ins >> 31) & 1) << 20;
+    }
+};
+class decoder {
+public:
+    unique_ptr<instruction> get_instruction(unsigned int ins) {
+        unique_ptr<instruction> o;
+        // cout << std::hex << ins <<'\n';
+        // std::bitset<32> mm(ins);
+        // cout << mm << '\n';
+        uint8_t opcode = ins & 0x7f;
+        if (opcode == 0x37 ||opcode == 0x17) {
+            o = make_unique<U_type>(ins);
+        }
+        else if (opcode == 0x6f) {
+            o = make_unique<J_type>(ins);
+        }
+        else if (opcode == 0x63) {
+            o = make_unique<B_type>(ins);
+        }
+        else if (opcode == 0x67 || opcode == 0x03 || opcode == 0x13) {
+            o = make_unique<I_type>(ins);
+        }
+        else if (opcode == 0x23) {
+            o = make_unique<S_type>(ins);
+        }
+        else if (opcode == 0x33) {
+            o = make_unique<R_type>(ins);
+        }
+        return o;
     }
 };
 }
