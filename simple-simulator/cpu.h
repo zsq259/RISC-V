@@ -38,7 +38,7 @@ public:
         //     std::cout <<"mm=" <<mm << " bb=" << bb <<'\n';
         // }
         int flag =  1;
-        if (o->op >= 5 && o->op <= 9) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
+        //if (o->op >= 5 && o->op <= 9) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
         switch (o->op) {
             case 0: { reg.x[o->get_rd()] = (signed int)(o->get_imm() << 12); } break;
             case 1: { reg.x[o->get_rd()] = reg.pc + (signed int)(o->get_imm() << 12); } break;
@@ -52,7 +52,7 @@ public:
             case 9: { if(reg.x[o->get_rs1()] >= reg.x[o->get_rs2()]) flag = 0, reg.pc += sext(o->get_imm(), 13); } break;
             case 10: { reg.x[o->get_rd()] = sext(m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 1), 8); } break;
             case 11: { reg.x[o->get_rd()] = sext(m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 2), 16); } break;
-            case 12: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 4); cout << std::dec << "value= " << reg.x[o->get_rd()] << '\n'; } break;
+            case 12: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 4); } break;
             case 13: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 1); } break;
             case 14: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 2); } break;
             case 15: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 1); } break;

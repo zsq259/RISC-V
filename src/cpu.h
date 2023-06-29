@@ -396,19 +396,21 @@ private:
     Predictor p;
     Bus *b = &Bus_;
     int clock = 0;
-    bool changeFlag[2];
+    bool changeFlag[2], fetchFlag[2], break_;
     unsigned ins[2], change[2];
 public:
-    void clear(int clk) { ins[clk] = change[clk] = changeFlag[clk] = 0; }
-    void update(int clk) { ins[!clk] = ins[clk]; change[!clk] = change[clk]; changeFlag[!clk] = changeFlag[clk]; }
+    void clear(int clk) { ins[clk] = change[clk] = changeFlag[clk] = fetchFlag[clk] = 0; }
+    void update(int clk) { ins[!clk] = ins[clk]; change[!clk] = change[clk]; changeFlag[!clk] = changeFlag[clk]; fetchFlag[!clk] = fetchFlag[clk]; }
     void fetch(int clk) { ins[clk] = m->fetch(reg->pc[!clk]); reg->pc[clk] = reg->pc[!clk] + 4; }
     bool issue(shared_ptr<instruction> o, int clk, bool res) {
         if (!o->is_B()) return d.issue(o, reg->pc[!clk] - 4, clk);
         else return d.issue(o, (reg->pc[!clk] - 4 + (res? 4 : sext(o->get_imm(), 13))) | res, clk);
     }
     bool decode(int clk) {
+        // std::cerr << "flag= " << changeFlag[!clk] << '\n';
+        if (fetchFlag[!clk]) ins[clk] = ins[!clk];
         if (changeFlag[!clk]) ins[!clk] = change[!clk];
-        changeFlag[clk] = 0;
+        changeFlag[clk] = fetchFlag[clk] = 0;
         if (ins[!clk] == 0x0ff00513) return true;
         if (!ins[!clk]) return false;
         
@@ -418,8 +420,9 @@ public:
         bool res = false;
         if (o->is_B()) res = p.result();
 
-        if(!issue(o, clk, res)) { changeFlag[clk] = true; change[clk] = ins[!clk]; return false; }
-
+        if(!issue(o, clk, res)) { reg->pc[clk] = reg->pc[!clk]; changeFlag[clk] = fetchFlag[clk] = true; change[clk] = ins[!clk]; return false; }
+        
+        // std::cerr << "pc= " << reg->pc[!clk] << ' ' << reg->pc[clk] << '\n';
         //o->print();
 
         if (o->is_J()) { reg->pc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; changeFlag[clk] = 1; }
@@ -436,21 +439,23 @@ public:
         reg->clear(0); reg->clear(1);
         int clk = clock & 1;
         while (true) {
-            // std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
+            //std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
             //if (clock > 50) break;
             if (!RoB->block[!clk]) {
+                
                 if (!changeFlag[!clk]) fetch(clk);
                 else ins[clk] = 0;
-                if (decode(clk)) break;
+                if (decode(clk)) { break_ = 1; };
                 //cout << std::hex << ins[clk] << ' ' << reg->pc[clk] << ' ' << changeFlag[clk] << '\n';
             }
+            // std::cerr << "pcc= " << reg->pc[!clk] << ' ' << reg->pc[clk] << '\n';
             RoB->RS_excute(clk);
             RoB->LSB_excute(clk);
             RoB->commit(clk);
             if (b->get_flag(clk)) clear(clk), b->clear(clk);
 
             // reg->print(clk);
-
+            if (break_ && !RoB->size[clk]) break;
             update(clk);
             reg->update(clk);
             RoB->update(clk);
