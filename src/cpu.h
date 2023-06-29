@@ -3,6 +3,7 @@
 
 #include "parser.h"
 #include "memory.h"
+#include <iostream>
 #include <memory>
 #include <bitset>
 #include <deque>
@@ -40,6 +41,10 @@ public:
         for (int i = 0; i < 32; ++i) std::cerr << x[clk][i] << ' ';
         std::cerr << pc[clk] << '\n';
     }
+    void printq(int clk) {
+        for (int i = 0; i < 32; ++i) std::cerr << q[clk][i] << ' ';
+        std::cerr << '\n';
+    }
 };
 
 extern Memory Mem;
@@ -76,6 +81,7 @@ public:
         throw;
     }
     int run_B(int op, unsigned rs1, unsigned rs2) {
+        //if (op == 4) std::cerr << "rs== " << rs1 << ' ' << rs2 << '\n';
         switch (op) {
             case 4: return rs1 == rs2;
             case 5: return rs1 != rs2;
@@ -178,6 +184,7 @@ public:
     void bus(int id, int value, int clk) {
         for (int i = 0; i < maxSize; ++i) {
             if (!c[i]) continue;
+            // if (v[!clk][i].qj == id && is_S(v[!clk][i].op) && value < 0) std::cerr << "value======================= " << value << '\n';
             if (v[!clk][i].qj == id) v[clk][i].vj = value, v[clk][i].qj = -1;
             if (v[!clk][i].qk == id) v[clk][i].vk = value, v[clk][i].qk = -1;
         }
@@ -188,7 +195,8 @@ extern ReservationStation RS_;
 extern LoadStoreBuffer LSB_;
 
 struct RoBdata {
-    int id, busy,  dest, value, op;
+    int id, busy, dest, value, op;
+    RoBdata() {}
     RoBdata(int id_, int b_, int v_, int o_): id(id_), busy(b_), value(v_), op(o_), dest(0) {}
 };    
 
@@ -196,7 +204,7 @@ class ReorderBuffer {
 private:
     int cnt[2] = {}, size[2] = {}, block[2] = {}, head[2] = {};
     const static int maxSize = 32;
-    deque<RoBdata> que[2];
+    RoBdata que[2][maxSize];
     ReservationStation *RS = &RS_;
     LoadStoreBuffer *LSB = &LSB_;
     Register *reg = &Reg;
@@ -211,10 +219,11 @@ public:
         size[!clk] = size[clk];
         block[!clk] = block[clk];
         head[!clk] = head[clk];
-        que[!clk] = que[clk];
+        for (int i = 0; i < maxSize; ++i) que[!clk][i] = que[clk][i];
     }
     void clear(int clk) {
-        while (!que[clk].empty()) que[clk].pop_back();
+        //while (!que[clk].empty()) que[clk].pop_back();
+        for (int i = 0; i < maxSize; ++i) que[clk][i].busy = 0;
         cnt[clk] = size[clk] = block[clk] = head[clk] = 0;
     }
     void LSB_excute(int clk) {
@@ -227,21 +236,22 @@ public:
             int flag = 0, h = a->dest;
             b = &que[clk][h];
             if (is_I(b->op)) {
-                for (int i = head[!clk]; i < h; ++i) if (is_S(que[!clk][i].op)) { flag = 1; break; }
+                for (int i = 0, k = head[!clk]; i < size[!clk] && k != h; ++i, k = (k + 1) % maxSize) 
+                    if (k ^ h && is_S(que[!clk][k].op)) { flag = 1; break; }
             }
             else {
-                for (int i = head[!clk]; i < h; ++i) if (is_S(que[!clk][i].op) || (que[!clk][i].op >= 10 && que[!clk][i].op <= 14)) { flag = 1; break; }
+                for (int i = 0, k = head[!clk]; i < size[!clk] && k != h; ++i, k = (k + 1) % maxSize) 
+                    if (k ^ h && (is_S(que[!clk][k].op) || (que[!clk][k].op >= 10 && que[!clk][k].op <= 14))) { flag = 1; break; }
             }
             if (flag) continue;
 
             if (LSB->c[clk][i] < 3) { ++LSB->c[clk][i]; continue; }
 
             b->busy = 0;
-            //b->status = kexcute;
             if (is_S(b->op)) {
                 b->dest = a->vj + sext(a->A, 12);
                 b->value = a->vk;
-                // cout << "op= " << b->id << ' ' << a->vk << '\n';
+                // std::cerr << "op= " << b->id << ' ' << a->vj << ' ' << sext(a->A, 12) <<' ' << a->vk << '\n';
             }
             else {
                 b->value = A.run_I(a->op, a->vj, a->A);
@@ -281,17 +291,21 @@ public:
         }
     }
     void commit(int clk) { //clk: next time;
-        //cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
+        
+        // cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
         if (!size[!clk] || que[!clk][head[!clk]].busy) return ;
         // cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
-        RoBdata *v = &que[clk][head[clk]]; ++head[clk];
+        RoBdata *v = &que[clk][head[clk]]; 
+        ++head[clk]; head[clk] %= maxSize;
         //que[clk].pop_front(); 
         --size[clk];
         v->busy = 0;
+        // std::cerr << funcs[que[clk][head[clk]].op] << '\n';
         if (v->op == 3) block[clk] = 0;
         if (is_B(v->op)) {
             if (v->value) {
-                // std::cerr << "wrong!!!!!!!!!!!! " << v->op << ' ' << v->id << '\n';
+                //std::cerr << "wrong!!!!!!!!!!!! " << v->op << ' ' << v->id << '\n';
+                // std::cerr << "ojbk\n";
                 reg->pc[clk] = v->dest;
                 clear(clk);
                 RS->clear(clk);
@@ -301,17 +315,26 @@ public:
             }
         }
         else if (is_S(v->op)) {
+            // std::cerr << "start\n";
+            // reg->printq(clk);
+            // std::cerr << v->id << v->dest << ' ' << v->value <<'\n';
+            // std::cerr << "end\n";
+
             if (v->op == 15) m->store(v->dest, v->value, 1);
             else if (v->op == 16) m->store(v->dest, v->value, 2);
             else if (v->op == 17) m->store(v->dest, v->value, 4);
+
+            // std::cerr << "start1\n";
+            // reg->printq(clk);
+            // std::cerr << "end1\n";
         }
         else { 
             if (v->dest) reg->x[clk][v->dest] = v->value; 
-            // if (reg->q[!clk][v->dest] != reg->q[clk][v->dest]) std::cerr << "q=== " <<  reg->q[!clk][v->dest] << ' ' <<  reg->q[clk][v->dest] << '\n';
             if (reg->q[clk][v->dest] == v->id) reg->q[clk][v->dest] = -1;
             RS->bus(v->id, v->value, clk);
             LSB->bus(v->id, v->value, clk);
         }
+        //reg->print(clk);
     }
 };
 
@@ -341,7 +364,7 @@ public:
         if (op && LSB->full(!clk)) return false;
         if (!op && RS->full(!clk)) return false;
         ++RoB->size[clk];
-        RoB->que[clk].push_back(RoBdata(RoB->cnt[clk], 1, 0, o->op));
+        RoB->que[clk][RoB->cnt[clk]] = (RoBdata(RoB->cnt[clk], 1, 0, o->op));
         RSdata *v = nullptr;
         if (op) { for (int i = 0; i < LSB->maxSize; ++i) if (!LSB->c[!clk][i]) { v = &LSB->v[clk][i]; LSB->c[clk][i] = 1; LSB->add(clk); break; } }
         else { for (int i = 0; i < RS->maxSize; ++i) if (!RS->c[!clk][i]) { v = &RS->v[clk][i]; RS->c[clk][i] = 1; RS->add(clk); break; } }
@@ -350,10 +373,10 @@ public:
         int rs1 = o->get_rs1(), rs2 = o->get_rs2(), rd = o->get_rd();
         if (o->is_J()) { RoB->que[clk][RoB->cnt[clk]].value = pc + 4; }
         else if (o->op == 3) { RoB->que[clk][RoB->cnt[clk]].value = pc + 4; RoB->block[clk] = 1; }
-        else if (o->op == 1) { v->A += pc; }
+        else if (o->op == 1) { v->A += pc; }    
+        
         v->qj = v->qk = -1;
         if (!(o->is_U() || o->is_J())) {
-            // if (RoB->cnt[clk] == 9) std::cerr << "reg================= " << reg->q[!clk][rs1] << '\n';
             if (reg->q[!clk][rs1] != -1) {
                 int h = reg->q[!clk][rs1];
                 if (!RoB->que[!clk][h].busy) { v->vj = RoB->que[!clk][h].value; v->qj = -1; }
@@ -362,7 +385,6 @@ public:
             else { v->vj = reg->x[!clk][rs1]; v->qj = -1; }
             if (!rs1) { v->vj = 0; v->qj = -1; }
         }
-        // if (RoB->cnt[clk] == 9) std::cerr << "reg================= " << v->qj << '\n';
         if (o->is_B() || o->is_S() || o->is_R()) {
             if (reg->q[!clk][rs2] != -1) {
                 int h = reg->q[!clk][rs2];
@@ -372,12 +394,15 @@ public:
             else { v->vk = reg->x[!clk][rs2]; v->qk = -1; }
             if (!rs2) { v->vk = 0; v->qk = -1; }
         }
+
         
+
         if (o->is_B()) { RoB->que[clk][RoB->cnt[clk]].value = pc & 1; RoB->que[clk][RoB->cnt[clk]].dest = pc & ~1; }
         
         if (!(o->is_B() || o->is_S())) { reg->q[clk][rd] = RoB->cnt[clk]; RoB->que[clk][RoB->cnt[clk]].dest = rd; }
-        // if (RoB->cnt[clk] == 21) std::cerr << "vk================== " << v->vk << ' ' << v->qk << '\n';
-        ++RoB->cnt[clk];
+        
+        
+        ++RoB->cnt[clk]; RoB->cnt[clk] %= RoB->maxSize;
         
         return true;
     }
@@ -399,7 +424,7 @@ private:
     bool changeFlag[2], fetchFlag[2], break_;
     unsigned ins[2], change[2];
 public:
-    void clear(int clk) { ins[clk] = change[clk] = changeFlag[clk] = fetchFlag[clk] = 0; }
+    void clear(int clk) { ins[clk] = change[clk] = changeFlag[clk] = fetchFlag[clk] = 0; break_ = 0;}
     void update(int clk) { ins[!clk] = ins[clk]; change[!clk] = change[clk]; changeFlag[!clk] = changeFlag[clk]; fetchFlag[!clk] = fetchFlag[clk]; }
     void fetch(int clk) { ins[clk] = m->fetch(reg->pc[!clk]); reg->pc[clk] = reg->pc[!clk] + 4; }
     bool issue(shared_ptr<instruction> o, int clk, bool res) {
@@ -439,24 +464,29 @@ public:
         reg->clear(0); reg->clear(1);
         int clk = clock & 1;
         while (true) {
-            //std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
-            //if (clock > 50) break;
-            if (!RoB->block[!clk]) {
+            // std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
+            // if (clock > 50) break;
+            if (!RoB->block[!clk] && !break_) {
                 
                 if (!changeFlag[!clk]) fetch(clk);
                 else ins[clk] = 0;
+            
+            
+            
                 if (decode(clk)) { break_ = 1; };
                 //cout << std::hex << ins[clk] << ' ' << reg->pc[clk] << ' ' << changeFlag[clk] << '\n';
             }
             // std::cerr << "pcc= " << reg->pc[!clk] << ' ' << reg->pc[clk] << '\n';
+            
             RoB->RS_excute(clk);
             RoB->LSB_excute(clk);
             RoB->commit(clk);
             if (b->get_flag(clk)) clear(clk), b->clear(clk);
-
-            // reg->print(clk);
+            
+            //reg->printq(clk);
             if (break_ && !RoB->size[clk]) break;
             update(clk);
+            
             reg->update(clk);
             RoB->update(clk);
             RS->update(clk);
