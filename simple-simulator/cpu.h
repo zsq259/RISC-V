@@ -38,7 +38,7 @@ public:
         //     std::cout <<"mm=" <<mm << " bb=" << bb <<'\n';
         // }
         int flag =  1;
-        //if (o->op >= 5 && o->op <= 9) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
+        if (o->op >= 4) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
         switch (o->op) {
             case 0: { reg.x[o->get_rd()] = (signed int)(o->get_imm() << 12); } break;
             case 1: { reg.x[o->get_rd()] = reg.pc + (signed int)(o->get_imm() << 12); } break;
@@ -57,7 +57,7 @@ public:
             case 14: { reg.x[o->get_rd()] = m.load(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), 2); } break;
             case 15: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 1); } break;
             case 16: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 2); } break;
-            case 17: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 4); std::cerr << "store========= " << reg.x[o->get_rs1()] << ' ' << sext(o->get_imm(), 12) << '\n'; } break;
+            case 17: { m.store(reg.x[o->get_rs1()] + sext(o->get_imm(), 12), reg.x[o->get_rs2()], 4); /*std::cerr << "store========= " << reg.x[o->get_rs1()] << ' ' << sext(o->get_imm(), 12) << '\n';*/ } break;
             case 18: { reg.x[o->get_rd()] = reg.x[o->get_rs1()] + sext(o->get_imm(), 12); } break;
             case 19: { reg.x[o->get_rd()] = ((signed)reg.x[o->get_rs1()] < (signed)sext(o->get_imm(), 12)); } break;
             case 20: { reg.x[o->get_rd()] = ((unsigned)reg.x[o->get_rs1()] < (unsigned)sext(o->get_imm(), 12)); } break;
