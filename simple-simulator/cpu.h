@@ -38,7 +38,7 @@ public:
         //     std::cout <<"mm=" <<mm << " bb=" << bb <<'\n';
         // }
         int flag =  1;
-        if (o->op >= 4) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
+        // if (o->op == 5) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
         switch (o->op) {
             case 0: { reg.x[o->get_rd()] = (signed int)(o->get_imm() << 12); } break;
             case 1: { reg.x[o->get_rd()] = reg.pc + (signed int)(o->get_imm() << 12); } break;
@@ -101,7 +101,7 @@ public:
             if (ins == 0x0ff00513) break;
             if (a.work(p.get_instruction(ins))) Register::pc += 4;;
             if (reg.x[0]) break;
-            reg.print();
+            // reg.print();
         }
         cout << std::dec << (((unsigned int)reg.x[10]) & 255u) <<'\n';
     }

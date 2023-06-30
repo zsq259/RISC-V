@@ -298,7 +298,7 @@ public:
         if (!size[!clk] || que[!clk][head[!clk]].busy) return true;
         // cout << "head=" << std::dec << head[!clk] << ' ' << size[!clk] << ' ' << que[!clk][head[!clk]].busy << ' ' << que[clk][head[clk]].op <<'\n';
         RoBdata *v = &que[clk][head[clk]]; 
-        // std::cerr << funcs[v->op] << '\n';
+        std::cerr << funcs[v->op] << '\n';
         // reg->print(clk);
         // if (v->op == 4) std::cerr << "value====== " << v->value << '\n';
         ++head[clk]; head[clk] %= maxSize;
@@ -433,16 +433,15 @@ private:
 public:
     void clear(int clk) { ins[clk] = change[clk] = changeFlag[clk] = fetchFlag[clk] = 0; break_ = 0;}
     void update(int clk) { ins[!clk] = ins[clk]; change[!clk] = change[clk]; changeFlag[!clk] = changeFlag[clk]; fetchFlag[!clk] = fetchFlag[clk]; }
-    void fetch(int clk) { ins[clk] = m->fetch(reg->pc[!clk]); reg->pc[clk] = reg->pc[!clk] + 4; }
+    void fetch(int clk) { ins[clk] = m->fetch(reg->pc[!clk]); reg->pc[clk] = reg->pc[!clk] + 4; fetchFlag[clk] = 0; }
     bool issue(shared_ptr<instruction> o, int clk, bool res) {
         if (!o->is_B()) return d.issue(o, reg->pc[!clk] - 4, clk);
         else return d.issue(o, (reg->pc[!clk] - 4 + (res? 4 : sext(o->get_imm(), 13))) | res, clk);
     }
     bool decode(int clk) {
         // std::cerr << "flag= " << changeFlag[!clk] << '\n';
-        if (fetchFlag[!clk]) ins[clk] = ins[!clk];
         if (changeFlag[!clk]) ins[!clk] = change[!clk];
-        changeFlag[clk] = fetchFlag[clk] = 0;
+        changeFlag[clk] = fetchFlag [clk] = 0;
         if (ins[!clk] == 0x0ff00513) return true;
         if (!ins[!clk]) return false;
         
@@ -459,7 +458,7 @@ public:
 
         if (o->is_J()) { reg->pc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; changeFlag[clk] = 1; }
         else if (o->is_B()) { reg->pc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; changeFlag[clk] = 1; }
-        else if (o->op == 3) { change[clk] = 0; changeFlag[clk] = 1; }
+        else if (o->op == 3) { change[clk] = 0; changeFlag[clk] = fetchFlag[clk] = 1; }
         // cout << "addadasd-=---------=" << std::hex << sext(o->get_imm(), 21) << '\n';
         // cout << "next pc = " << std::hex << reg->pc[clk] << '\n';
         // puts("ok");
@@ -471,12 +470,12 @@ public:
         reg->clear(0); reg->clear(1);
         int clk = clock & 1;
         while (true) {
-            // std::cerr << "-----------------------clock= " << clock << ' ' << clk << '\n';
-            // if (clock > 50) break;
+            //std::cerr << "-----------------------clock= " << clock << ' ' << clk << ' ' << RoB->block[!clk] << '\n';
+            //if (clock > 50) break;
             // if (!b->get_flag(!clk)) {
                 if (!RoB->block[!clk] && !break_) {
                     
-                    if (!changeFlag[!clk]) fetch(clk);
+                    if (!fetchFlag[!clk]) fetch(clk);
                     else ins[clk] = 0;
                 
                 
