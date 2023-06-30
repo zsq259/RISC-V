@@ -437,17 +437,17 @@ public:
     bool decode(int clk) {
         if (RoB->block[!clk] || break_) return false;
         if (changeFlag[!clk]) ins[!clk] = change[!clk];
-        changeFlag[clk] = fetchFlag[clk] = pcFlag[clk] = 0;
+        changeFlag[clk] = fetchFlag[clk] = pcFlag[clk] = false;
         if (ins[!clk] == 0x0ff00513) return true;
         if (!ins[!clk]) return false;    
         shared_ptr<instruction> o = d.decode(ins[!clk]);
-        o->print();
+        // o->print();
         bool res = false;
         if (o->is_B()) res = p->result();
         if(!issue(o, clk, res)) { changepc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = true; change[clk] = ins[!clk]; return false; }
-        if (o->is_J()) { changepc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = false; pcFlag[clk] = changeFlag[clk] = true; }
+        if (o->is_J()) { changepc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->is_B()) { changepc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
-        else if (o->op == 3) { change[clk] = false; changeFlag[clk] = fetchFlag[clk] = true; }
+        else if (o->op == 3) { change[clk] = 0; changeFlag[clk] = fetchFlag[clk] = true; }
         // std::cout << "pcccc= " << reg->pc[clk] << '\n';
         return false;
     }
@@ -463,13 +463,13 @@ public:
         m->init();
         reg->clear(0); reg->clear(1);
         while (true) {
-            if (!RoB->commit(clk)) clear(clk), b->clear(clk);
             
-            break_ = decode(clk);
             fetch(clk);
-            RoB->LSB_excute(clk);
-            RoB->RS_excute(clk);
+            break_ = decode(clk);
             
+            RoB->RS_excute(clk);
+            RoB->LSB_excute(clk);
+            if (!RoB->commit(clk)) clear(clk), b->clear(clk);
             // std::cerr <<"pc= " << reg->pc[clk] << '\n';
             
             // std::shuffle(f, f + 5, rd);
