@@ -29,14 +29,6 @@ private:
 public:
     int work(std::unique_ptr<instruction> o) {
         o->print();
-        // if (1) {
-        //     puts("begin");
-        //     printf("rs1=%d rs2=%d rd=%d\n",reg.x[o->get_rs1()], reg.x[o->get_rs2()], reg.x[o->get_rd()]);
-            
-        //     unsigned bb = sext(o->get_imm(), 12);
-        //     std::bitset<32>mm(bb);
-        //     std::cout <<"mm=" <<mm << " bb=" << bb <<'\n';
-        // }
         int flag =  1;
         // if (o->op == 5) std::cerr << "rs1= " << reg.x[o->get_rs1()] << ' ' << reg.x[o->get_rs2()] << '\n';
         switch (o->op) {

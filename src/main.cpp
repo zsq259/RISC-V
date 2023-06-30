@@ -10,6 +10,8 @@ namespace hst {
     ReservationStation RS_;
     LoadStoreBuffer LSB_;
     ReorderBuffer RoB_;
+    int Predictor::sum = 0;
+    int Predictor::success = 0;
 }
 hst::cabbage_cpu T;
 
