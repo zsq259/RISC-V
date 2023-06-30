@@ -475,20 +475,20 @@ public:
         reg->clear(0); reg->clear(1);
         while (true) {
             
-            break_ = decode(clk);
-            fetch(clk);
+            // break_ = decode(clk);
+            // fetch(clk);
             
-            RoB->LSB_excute(clk);                         
-            RoB->RS_excute(clk);
-            if (!RoB->commit(clk)) clear(clk), b->clear(clk);
+            // RoB->LSB_excute(clk);                         
+            // RoB->RS_excute(clk);
+            // if (!RoB->commit(clk)) clear(clk), b->clear(clk);
             
             
             // std::cerr <<"pc= " << reg->pc[clk] << '\n';
             
-            //std::shuffle(f, f + 5, rd);
+            std::shuffle(f, f + 5, rd);
             
             //for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
-            //for (int i = 0; i < 5; ++i) f[ff[i]]();
+            for (int i = 0; i < 5; ++i) f[ff[i]]();
             if (break_ && !RoB->size[clk]) break;
             update(clk);
             ++clock; clk ^= 1;
