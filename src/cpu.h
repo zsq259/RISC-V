@@ -410,9 +410,10 @@ private:
     unsigned ins[2], change[2], changepc[2];
     std::function<void()> f[5];
     std::random_device rd;
+    int ff[5] = {0, 1, 2, 3, 4};
 public:
     void clear(int clk) { 
-        fetchFlag[clk] = fetchFlag[!clk] = 1;
+        fetchFlag[clk] = 0; fetchFlag[!clk] = 1;
         ins[clk] = change[clk] = changepc[clk] = changeFlag[clk] = pcFlag[clk] = break_ = 0;
         ins[!clk] = change[!clk] = changepc[!clk] = changeFlag[!clk] = pcFlag[!clk] = 0;
     }
@@ -431,7 +432,7 @@ public:
     }
     void fetch(int clk) {
         if (RoB->block[!clk] || break_) return ;
-        if (fetchFlag[!clk]) { ins[clk] = 0; fetchFlag[clk] = 0; return; }
+        if (fetchFlag[!clk]) { ins[clk] = 0; /*fetchFlag[clk] = 0;*/ return; }
         if (pcFlag[!clk]) reg->pc[!clk] = changepc[!clk], pcFlag[clk] = false;
         ins[clk] = m->fetch(reg->pc[!clk]); 
         reg->pc[clk] = reg->pc[!clk] + 4; 
@@ -451,7 +452,7 @@ public:
         // o->print();
         bool res = false;
         if (o->is_B()) res = p->result();
-        if(!issue(o, clk, res)) { reg->pc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = true; change[clk] = ins[!clk]; return false; }
+        if(!issue(o, clk, res)) { reg->pc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = fetchFlag[!clk] = true; change[clk] = ins[!clk]; return false; }
         if (o->is_J()) { changepc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->is_B()) { changepc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->op == 3) { change[clk] = 0; changeFlag[clk] = fetchFlag[clk] = true; }
@@ -459,6 +460,9 @@ public:
         return false;
     }
     void init() {
+        
+        std::shuffle(ff, ff + 5, rd);
+        // for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
         f[0] = [&]() ->void { fetch(clk); };
         f[1] = [&]() ->void { break_ = decode(clk); };
         f[2] = [&]() ->void { RoB->RS_excute(clk); };
@@ -471,24 +475,20 @@ public:
         reg->clear(0); reg->clear(1);
         while (true) {
             
-            // if (!RoB->commit(clk)) clear(clk), b->clear(clk);
-            // RoB->RS_excute(clk);
-            // fetch(clk);
+            break_ = decode(clk);
+            fetch(clk);
             
-            // RoB->LSB_excute(clk);
-            
-            
-            // break_ = decode(clk);
-            
+            RoB->LSB_excute(clk);                         
+            RoB->RS_excute(clk);
+            if (!RoB->commit(clk)) clear(clk), b->clear(clk);
             
             
             // std::cerr <<"pc= " << reg->pc[clk] << '\n';
             
             //std::shuffle(f, f + 5, rd);
-            int ff[5] = {0, 1, 2, 3, 4};
-            std::shuffle(ff, ff + 5, rd);
+            
             //for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
-            for (int i = 0; i < 5; ++i) f[ff[i]]();
+            //for (int i = 0; i < 5; ++i) f[ff[i]]();
             if (break_ && !RoB->size[clk]) break;
             update(clk);
             ++clock; clk ^= 1;
