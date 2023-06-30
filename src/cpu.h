@@ -294,7 +294,9 @@ public:
         ++head[clk]; head[clk] %= maxSize;
         --size[clk];
         v->busy = 0;
+
         // std::cerr << funcs[v->op] << '\n';
+
         if (v->op == 3) block[clk] = 0;
         if (is_B(v->op)) {
             ++Predictor::sum;
@@ -444,7 +446,7 @@ public:
         // o->print();
         bool res = false;
         if (o->is_B()) res = p->result();
-        if(!issue(o, clk, res)) { changepc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = true; change[clk] = ins[!clk]; return false; }
+        if(!issue(o, clk, res)) { reg->pc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = true; change[clk] = ins[!clk]; return false; }
         if (o->is_J()) { changepc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->is_B()) { changepc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->op == 3) { change[clk] = 0; changeFlag[clk] = fetchFlag[clk] = true; }
