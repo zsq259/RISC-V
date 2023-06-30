@@ -32,7 +32,7 @@ public:
         x[!clk][0] = 0;
     }
     void clear(int clk) {
-        for (int i = 0; i < 32; ++i) q[clk][i] = -1;
+        for (int i = 0; i < 32; ++i) q[clk][i] = q[!clk][i] = -1;
     }
     void print(int clk) {
         for (int i = 0; i < 32; ++i) std::cerr << x[clk][i] << ' ';
@@ -131,7 +131,7 @@ private:
     bool flag[2];
 public:
     void update(int clk) { flag[!clk] = flag[clk]; }
-    void clear(int  clk) { flag[clk] = false; }
+    void clear(int  clk) { flag[clk] = flag[!clk] = false; }
     void set(int clk) { flag[clk] = true; }
     bool get_flag(int clk) { return flag[clk]; }
 };
@@ -165,8 +165,8 @@ public:
     void add(int clk) { ++size[clk]; }
     bool full(int clk) { return size[clk] == maxSize; }
     void clear(int clk) {
-        size[clk] = 0;
-        for (int i = 0; i < maxSize; ++i) c[clk][i] = 0;
+        size[!clk] = size[clk] = 0;
+        for (int i = 0; i < maxSize; ++i) c[!clk][i] = c[clk][i] = 0;
     }
     void bus(int id, int value, int clk) {
         for (int i = 0; i < maxSize; ++i) {
@@ -186,8 +186,8 @@ public:
     void add(int clk) { ++size[clk]; }
     bool full(int clk) { return size[clk] == maxSize; }
     void clear(int clk) {
-        size[clk] = 0;
-        for (int i = 0; i < maxSize; ++i) c[clk][i] = 0;
+        size[!clk] = size[clk] = 0;
+        for (int i = 0; i < maxSize; ++i) c[!clk][i] = c[clk][i] = 0;
     }
     void bus(int id, int value, int clk) {
         for (int i = 0; i < maxSize; ++i) {
@@ -230,8 +230,9 @@ public:
         for (int i = 0; i < maxSize; ++i) que[!clk][i] = que[clk][i];
     }
     void clear(int clk) {
-        for (int i = 0; i < maxSize; ++i) que[clk][i].busy = 0;
+        for (int i = 0; i < maxSize; ++i) que[clk][i].busy = que[!clk][i].busy = 0;
         cnt[clk] = size[clk] = block[clk] = head[clk] = 0;
+        cnt[!clk] = size[!clk] = block[!clk] = head[!clk] = 0;
     }
     void LSB_excute(int clk) {
         RSdata *a = nullptr;
@@ -410,7 +411,11 @@ private:
     std::function<void()> f[5];
     std::random_device rd;
 public:
-    void clear(int clk) { ins[clk] = change[clk] = changepc[clk] = changeFlag[clk] = fetchFlag[clk] = pcFlag[clk] = 0; break_ = 0;}
+    void clear(int clk) { 
+        fetchFlag[clk] = fetchFlag[!clk] = 1;
+        ins[clk] = change[clk] = changepc[clk] = changeFlag[clk] = pcFlag[clk] = break_ = 0;
+        ins[!clk] = change[!clk] = changepc[!clk] = changeFlag[!clk] = pcFlag[!clk] = 0;
+    }
     void update(int clk) { 
         ins[!clk] = ins[clk]; 
         change[!clk] = change[clk]; 
@@ -426,7 +431,7 @@ public:
     }
     void fetch(int clk) {
         if (RoB->block[!clk] || break_) return ;
-        if (fetchFlag[!clk]) { ins[clk] = 0; return; }
+        if (fetchFlag[!clk]) { ins[clk] = 0; fetchFlag[clk] = 0; return; }
         if (pcFlag[!clk]) reg->pc[!clk] = changepc[!clk], pcFlag[clk] = false;
         ins[clk] = m->fetch(reg->pc[!clk]); 
         reg->pc[clk] = reg->pc[!clk] + 4; 
@@ -466,16 +471,24 @@ public:
         reg->clear(0); reg->clear(1);
         while (true) {
             
-            fetch(clk);
-            break_ = decode(clk);
+            // if (!RoB->commit(clk)) clear(clk), b->clear(clk);
+            // RoB->RS_excute(clk);
+            // fetch(clk);
             
-            RoB->RS_excute(clk);
-            RoB->LSB_excute(clk);
-            if (!RoB->commit(clk)) clear(clk), b->clear(clk);
+            // RoB->LSB_excute(clk);
+            
+            
+            // break_ = decode(clk);
+            
+            
+            
             // std::cerr <<"pc= " << reg->pc[clk] << '\n';
             
-            // std::shuffle(f, f + 5, rd);
-            // for (int i = 0; i < 5; ++i) f[i]();
+            //std::shuffle(f, f + 5, rd);
+            int ff[5] = {0, 1, 2, 3, 4};
+            std::shuffle(ff, ff + 5, rd);
+            //for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
+            for (int i = 0; i < 5; ++i) f[ff[i]]();
             if (break_ && !RoB->size[clk]) break;
             update(clk);
             ++clock; clk ^= 1;
