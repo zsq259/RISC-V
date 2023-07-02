@@ -110,19 +110,40 @@ public:
 
 class Predictor {
 private:
+    const static int maxSize = 1 << 6;
+    const static int N = 4;
+    const static int Size = 1 << N;
     static int sum , success;
-    int status;
+    int status[maxSize][Size] = {};
+    int history[maxSize] = {};
 public:
     friend class ReorderBuffer;
     friend class cabbage_cpu;
-    void taken() {
-        if (status < 0b11) ++status;
+    Predictor() { 
+        for (int i = 0; i < maxSize; ++i) 
+            for (int j = 0; j < Size; ++j) status[i][j] = 0b10;
     }
-    void untaken() {
-        if (status) --status;
+    inline int hash(int pc) {
+        return (pc >> 2) & 0x3f;
     }
-    bool result() {
-        return (status >> 1) & 1;
+    bool get_prediction(int pc) {
+        int i = hash(pc);
+        return (status[i][history[i]] >> 1) & 1;
+    }
+    void result(int pc, bool taken) {
+        int i = hash(pc);
+        // if (i == 38) std::cerr <<"i=" << i << ' ' << taken << ' ' << history[i] << '\n';
+        if (taken) ++Predictor::success;
+        bool jump = (get_prediction(pc) == taken);
+        if (jump && status[i][history[i]] < 0b11) ++status[i][history[i]];
+        if (!jump && status[i][history[i]]) --status[i][history[i]];
+        history[i] = ((history[i] << 1) | jump) & (Size - 1);
+    }
+    bool predict(int pc) {
+        ++Predictor::sum;
+        int i = hash(pc);
+        // if (i == 38) std::cerr << "res=" << i << ' ' << ((status[i][history[i]] >> 1) & 1) << ' ' << history[i] << '\n';
+        return (status[i][history[i]] >> 1) & 1;
     }
 };
 
@@ -300,9 +321,8 @@ public:
 
         if (v->op == 3) block[clk] = 0;
         if (is_B(v->op)) {
-            ++Predictor::sum;
-            if (v->value) {
-                p.untaken();
+            if (v->value & 1) {
+                p.result(v->value & (~1), 0);
                 reg->pc[clk] = v->dest;
                 clear(clk);
                 RS->clear(clk);
@@ -312,8 +332,7 @@ public:
                 return false;
             }
             else {
-                p.taken();
-                ++Predictor::success;
+                p.result(v->value & (~1), 1);
             }
         }
         else if (is_S(v->op)) {
@@ -387,7 +406,7 @@ public:
             else { v->vk = reg->x[!clk][rs2]; v->qk = -1; }
             if (!rs2) { v->vk = 0; v->qk = -1; }
         }
-        if (o->is_B()) { RoB->que[clk][RoB->cnt[clk]].value = pc & 1; RoB->que[clk][RoB->cnt[clk]].dest = pc & ~1; }
+        if (o->is_B()) { RoB->que[clk][RoB->cnt[clk]].value = (pc & 1) | (reg->pc[!clk] - 4); RoB->que[clk][RoB->cnt[clk]].dest = pc & ~1; }
         if (!(o->is_B() || o->is_S())) { reg->q[clk][rd] = RoB->cnt[clk]; RoB->que[clk][RoB->cnt[clk]].dest = rd; }
         ++RoB->cnt[clk]; RoB->cnt[clk] %= RoB->maxSize;
         return true;
@@ -410,7 +429,6 @@ private:
     unsigned ins[2], change[2], changepc[2];
     std::function<void()> f[5];
     std::random_device rd;
-    int ff[5] = {0, 1, 2, 3, 4};
 public:
     void clear(int clk) { 
         fetchFlag[clk] = 0; fetchFlag[!clk] = 1;
@@ -451,7 +469,7 @@ public:
         shared_ptr<instruction> o = d.decode(ins[!clk]);
         // o->print();
         bool res = false;
-        if (o->is_B()) res = p->result();
+        if (o->is_B()) res = p->predict(reg->pc[!clk] - 4);
         if(!issue(o, clk, res)) { reg->pc[clk] = reg->pc[!clk]; pcFlag[clk] = changeFlag[clk] = fetchFlag[clk] = fetchFlag[!clk] = true; change[clk] = ins[!clk]; return false; }
         if (o->is_J()) { changepc[clk] = reg->pc[!clk] - 4 + sext(o->get_imm(), 21); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
         else if (o->is_B()) { changepc[clk] = reg->pc[!clk] - 4  + (res? sext(o->get_imm(), 13) : 4); change[clk] = 0; pcFlag[clk] = changeFlag[clk] = true; }
@@ -460,9 +478,6 @@ public:
         return false;
     }
     void init() {
-        
-        std::shuffle(ff, ff + 5, rd);
-        // for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
         f[0] = [&]() ->void { fetch(clk); };
         f[1] = [&]() ->void { break_ = decode(clk); };
         f[2] = [&]() ->void { RoB->RS_excute(clk); };
@@ -474,27 +489,20 @@ public:
         m->init();
         reg->clear(0); reg->clear(1);
         while (true) {
-            
             // break_ = decode(clk);
             // fetch(clk);
-            
             // RoB->LSB_excute(clk);                         
             // RoB->RS_excute(clk);
-            // if (!RoB->commit(clk)) clear(clk), b->clear(clk);
-            
-            
-            // std::cerr <<"pc= " << reg->pc[clk] << '\n';
-            
+            // if (!RoB->commit(clk)) clear(clk), b->clear(clk);            
             std::shuffle(f, f + 5, rd);
-            
-            //for (int i = 0; i < 5; ++i) std::cout << ff[i] << ' ';
-            for (int i = 0; i < 5; ++i) f[ff[i]]();
+            for (int i = 0; i < 5; ++i) f[i]();
             if (break_ && !RoB->size[clk]) break;
             update(clk);
             ++clock; clk ^= 1;
         }
         cout << std::dec << (((unsigned int)reg->x[clock & 1][10]) & 255u) << '\n';
-        // std::cerr << "predict sum: " << Predictor::sum << " \npredict success sum: " << Predictor::success << "\npercentage: " << (double)(1.0 * Predictor::success / Predictor::sum) << '\n';
+        std::cerr << "clock: " << clock << '\n';
+        std::cerr << "predict sum: " << Predictor::sum << " \npredict success sum: " << Predictor::success << "\npercentage: " << (double)(1.0 * Predictor::success / Predictor::sum) << '\n';
     }
 };
 }
